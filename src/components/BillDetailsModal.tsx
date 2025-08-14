@@ -156,6 +156,28 @@ export default function BillDetailsModal({ isOpen, onClose, billId, onBillUpdate
     }
   }
 
+  const deleteItem = async (itemId: string, itemName: string) => {
+    if (!confirm(`Are you sure you want to delete "${itemName}"?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/bills/${billId}/items/${itemId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        fetchBill()
+        onBillUpdated()
+      } else {
+        alert('Failed to delete item')
+      }
+    } catch (error) {
+      console.error('Failed to delete item:', error)
+      alert('Failed to delete item')
+    }
+  }
+
   const calculateSummary = () => {
     if (!bill) return { subtotal: 0, serviceCharge: 0, tax: 0, total: 0 }
     
@@ -305,6 +327,7 @@ export default function BillDetailsModal({ isOpen, onClose, billId, onBillUpdate
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -346,6 +369,18 @@ export default function BillDetailsModal({ isOpen, onClose, billId, onBillUpdate
                           <span className="ml-1 text-xs">Verified</span>
                         </label>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => deleteItem(item.id, item.name)}
+                        className="text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                        title="Delete item"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </td>
                   </tr>
                 ))}

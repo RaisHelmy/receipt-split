@@ -59,6 +59,45 @@ Type 'help' for available commands.`)
     setMessages(prev => [...prev, message])
   }
 
+  // Split batch add commands while preserving quoted strings  
+  const splitAddCommands = (input: string): string[] => {
+    const commands: string[] = []
+    let currentPos = 0
+    
+    // Find all 'add ' positions that are not inside quotes
+    const addPositions: number[] = [0] // Start with position 0
+    let inQuotes = false
+    let quoteChar = ''
+    
+    for (let i = 0; i < input.length - 4; i++) {
+      const char = input[i]
+      
+      if ((char === '"' || char === "'") && !inQuotes) {
+        inQuotes = true
+        quoteChar = char
+      } else if (char === quoteChar && inQuotes) {
+        inQuotes = false
+        quoteChar = ''
+      } else if (!inQuotes && input.substring(i, i + 5) === ' add ' && i > 0) {
+        // Found ' add ' outside quotes, and not at the beginning
+        addPositions.push(i + 1) // +1 to skip the space before 'add'
+      }
+    }
+    
+    // Extract commands between positions
+    for (let i = 0; i < addPositions.length; i++) {
+      const start = addPositions[i]
+      const end = i < addPositions.length - 1 ? addPositions[i + 1] - 1 : input.length
+      const command = input.substring(start, end).trim()
+      
+      if (command && command.startsWith('add ')) {
+        commands.push(command)
+      }
+    }
+    
+    return commands
+  }
+
   const executeCommand = async (command: string) => {
     const trimmedCommand = command.trim()
     if (!trimmedCommand) return
@@ -72,7 +111,28 @@ Type 'help' for available commands.`)
     setIsProcessing(true)
 
     try {
-      await processCommand(trimmedCommand)
+      // Handle multiple commands separated by semicolons, newlines, or detect batch add commands
+      if (trimmedCommand.includes(';')) {
+        // Split by semicolon for general multiple commands
+        const commands = trimmedCommand.split(';').map(cmd => cmd.trim()).filter(Boolean)
+        for (const cmd of commands) {
+          await processCommand(cmd)
+        }
+      } else if (trimmedCommand.includes('\n')) {
+        // Handle newline-separated commands (multiline paste)
+        const commands = trimmedCommand.split('\n').map(cmd => cmd.trim()).filter(Boolean)
+        for (const cmd of commands) {
+          await processCommand(cmd)
+        }
+      } else if (trimmedCommand.match(/^add\s+\S+.*?\s+add\s+/)) {
+        // Handle batch add commands on single line - split carefully to preserve quoted strings
+        const commands = splitAddCommands(trimmedCommand)
+        for (const cmd of commands) {
+          await processCommand(cmd)
+        }
+      } else {
+        await processCommand(trimmedCommand)
+      }
     } catch (error) {
       addMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
@@ -80,17 +140,56 @@ Type 'help' for available commands.`)
     }
   }
 
+  // Parse command arguments, handling quoted strings properly
+  const parseCommandArgs = (command: string) => {
+    const args: string[] = []
+    let currentArg = ''
+    let inQuotes = false
+    let quoteChar = ''
+    
+    for (let i = 0; i < command.length; i++) {
+      const char = command[i]
+      
+      if ((char === '"' || char === "'") && !inQuotes) {
+        // Start of quoted string
+        inQuotes = true
+        quoteChar = char
+      } else if (char === quoteChar && inQuotes) {
+        // End of quoted string
+        inQuotes = false
+        quoteChar = ''
+      } else if (char === ' ' && !inQuotes) {
+        // Space outside quotes - end of argument
+        if (currentArg.trim()) {
+          args.push(currentArg.trim())
+          currentArg = ''
+        }
+      } else {
+        // Regular character or space inside quotes
+        currentArg += char
+      }
+    }
+    
+    // Add the last argument if exists
+    if (currentArg.trim()) {
+      args.push(currentArg.trim())
+    }
+    
+    return args
+  }
+
   const processCommand = async (command: string) => {
-    const parts = command.toLowerCase().split(' ')
-    const cmd = parts[0]
+    const parts = parseCommandArgs(command)
+    const cmd = parts[0]?.toLowerCase() || ''
 
     switch (cmd) {
       case 'help':
         addMessage('system', `Available commands:
 • help - Show this help message
 • list - List all bills
-• create <name> [currency] [visibility] - Create new bill
+• create <name> [reference] [currency] [visibility] - Create new bill
 • add <billRef> <itemName> <amount> [quantity] - Add item to bill
+• remove <billRef> <itemIndex> - Remove item by index (use show to see indices)
 • edit <billRef> <field> <value> - Edit bill settings
 • tax <billRef> <percentage> - Set tax rate
 • service <billRef> <percentage> - Set service charge
@@ -98,9 +197,17 @@ Type 'help' for available commands.`)
 • show <billRef> - Show bill details
 • clear - Clear terminal
 
+Batch commands:
+• Separate multiple commands with semicolons (;)
+• Paste multiple commands with newlines (multiline)
+• Multiple add commands can be chained together
+
 Examples:
-• create "Dinner Bill" RM public
+• create "Dinner Bill" DINNER2024 RM public
 • add DB123456 "Pizza" 25.50 2
+• remove DB123456 1 (removes first item)
+• add DB123456 "Item 1" 10.00 1 add DB123456 "Item 2" 15.00 2
+• Multiline paste: Copy/paste multiple commands at once
 • tax DB123456 10
 • service DB123456 5
 • voucher DB123456 15.00
@@ -124,6 +231,10 @@ Type 'help' for available commands.`)
 
       case 'add':
         await addItem(parts.slice(1))
+        break
+
+      case 'remove':
+        await removeItem(parts.slice(1))
         break
 
       case 'edit':
@@ -175,13 +286,14 @@ Type 'help' for available commands.`)
 
   const createBill = async (args: string[]) => {
     if (args.length === 0) {
-      addMessage('error', 'Usage: create <name> [currency] [visibility]\nExample: create "Dinner Bill" RM public')
+      addMessage('error', 'Usage: create <name> [reference] [currency] [visibility]\nExample: create "Dinner Bill" DINNER2024 RM public')
       return
     }
 
-    const name = args[0].replace(/['"]/g, '')
-    const currency = args[1]?.toUpperCase() || 'RM'
-    const visibility = args[2]?.toUpperCase() || 'PRIVATE'
+    const name = args[0]
+    const reference = args[1] || null // Optional reference
+    const currency = args[2]?.toUpperCase() || 'RM'
+    const visibility = args[3]?.toUpperCase() || 'PRIVATE'
 
     // Validate currency
     if (!CURRENCIES.find(c => c.code === currency)) {
@@ -201,7 +313,7 @@ Type 'help' for available commands.`)
       const response = await fetch('/api/bills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, currency, visibility })
+        body: JSON.stringify({ name, reference, currency, visibility })
       })
 
       if (response.ok) {
@@ -228,7 +340,7 @@ Visibility: ${data.bill.visibility}`)
     }
 
     const billRef = args[0]
-    const itemName = args[1].replace(/['"]/g, '')
+    const itemName = args[1]
     const amount = parseFloat(args[2])
     const quantity = args[3] ? parseInt(args[3]) : 1
 
@@ -282,6 +394,77 @@ Added to: ${bill.name} (${billRef})`)
       }
     } catch (error) {
       addMessage('error', 'Network error while adding item.')
+    }
+  }
+
+  const removeItem = async (args: string[]) => {
+    if (args.length < 2) {
+      addMessage('error', 'Usage: remove <billRef> <itemIndex>\nExample: remove DB123456 1 (removes first item)\nTip: Use "show <billRef>" to see item indices')
+      return
+    }
+
+    const billRef = args[0]
+    const itemIndex = parseInt(args[1])
+
+    if (isNaN(itemIndex) || itemIndex < 1) {
+      addMessage('error', 'Item index must be a positive number starting from 1')
+      return
+    }
+
+    try {
+      // First find the bill by reference
+      const billsResponse = await fetch('/api/bills')
+      if (!billsResponse.ok) {
+        addMessage('error', 'Failed to fetch bills. Please ensure you are signed in.')
+        return
+      }
+
+      const billsData = await billsResponse.json()
+      const bill = billsData.bills.find((b: any) => b.reference === billRef)
+
+      if (!bill) {
+        addMessage('error', `Bill with reference ${billRef} not found.\nTip: Use "list" to see all available bills.`)
+        return
+      }
+
+      // Fetch full bill details to get items
+      const billResponse = await fetch(`/api/bills/${bill.id}`)
+      if (!billResponse.ok) {
+        addMessage('error', 'Failed to fetch bill details.')
+        return
+      }
+
+      const billData = await billResponse.json()
+      const items = billData.bill.items
+
+      if (items.length === 0) {
+        addMessage('error', 'This bill has no items to remove.')
+        return
+      }
+
+      if (itemIndex > items.length) {
+        addMessage('error', `Invalid item index: ${itemIndex}. This bill has ${items.length} item(s).`)
+        return
+      }
+
+      const itemToDelete = items[itemIndex - 1] // Convert to 0-based index
+      
+      // Delete the item
+      const response = await fetch(`/api/bills/${bill.id}/items/${itemToDelete.id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        addMessage('success', `✓ Item removed successfully!
+Item: ${itemToDelete.name} (${itemToDelete.amount} × ${itemToDelete.quantity})
+Removed from: ${bill.name} (${billRef})`)
+        onBillUpdated?.()
+      } else {
+        const error = await response.json()
+        addMessage('error', error.error || 'Failed to remove item')
+      }
+    } catch (error) {
+      addMessage('error', 'Network error while removing item.')
     }
   }
 
@@ -397,8 +580,8 @@ Bill: ${bill.name} (${billRef})`)
       const total = Math.max(0, subtotal + serviceCharge + tax - bill.discount)
 
       const itemsList = bill.items.length > 0 
-        ? bill.items.map((item: any) => 
-            `  • ${item.name}: ${item.amount} × ${item.quantity} = ${item.total}${item.assignedTo ? ` (${item.assignedTo})` : ''}`
+        ? bill.items.map((item: any, index: number) => 
+            `  ${index + 1}. ${item.name}: ${item.amount} × ${item.quantity} = ${item.total}${item.assignedTo ? ` (${item.assignedTo})` : ''}`
           ).join('\n')
         : '  No items yet'
 

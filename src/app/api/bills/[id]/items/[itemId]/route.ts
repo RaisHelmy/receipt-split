@@ -94,3 +94,67 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     )
   }
 }
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string; itemId: string }> }) {
+  try {
+    const currentUser = await getCurrentUser()
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      )
+    }
+
+    const { id: billId, itemId } = await context.params
+
+    // Verify user owns the bill
+    const bill = await prisma.bill.findFirst({
+      where: {
+        id: billId,
+        userId: currentUser.userId,
+      }
+    })
+
+    if (!bill) {
+      return NextResponse.json(
+        { error: 'Bill not found' },
+        { status: 404 }
+      )
+    }
+
+    // Verify item exists and belongs to the bill
+    const item = await prisma.billItem.findFirst({
+      where: {
+        id: itemId,
+        billId,
+      }
+    })
+
+    if (!item) {
+      return NextResponse.json(
+        { error: 'Item not found' },
+        { status: 404 }
+      )
+    }
+
+    // Delete related assignments first
+    await prisma.itemAssignment.deleteMany({
+      where: { itemId }
+    })
+
+    // Delete the item
+    await prisma.billItem.delete({
+      where: { id: itemId }
+    })
+
+    return NextResponse.json({ message: 'Item deleted successfully' })
+
+  } catch (error) {
+    console.error('Delete item error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

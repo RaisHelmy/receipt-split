@@ -64,13 +64,36 @@ export async function POST(request: Request) {
       )
     }
 
-    const { name, currency, visibility } = await request.json()
+    const { name, reference: customReference, currency, visibility } = await request.json()
 
     if (!name) {
       return NextResponse.json(
         { error: 'Bill name is required' },
         { status: 400 }
       )
+    }
+
+    // If custom reference is provided, validate it
+    if (customReference) {
+      // Check if reference already exists
+      const existingBill = await prisma.bill.findFirst({
+        where: { reference: customReference }
+      })
+      
+      if (existingBill) {
+        return NextResponse.json(
+          { error: `Reference "${customReference}" already exists. Please choose a different reference.` },
+          { status: 400 }
+        )
+      }
+      
+      // Validate reference format (alphanumeric and some special chars, no spaces)
+      if (!/^[a-zA-Z0-9_-]+$/.test(customReference)) {
+        return NextResponse.json(
+          { error: 'Reference must contain only letters, numbers, underscores, and hyphens (no spaces)' },
+          { status: 400 }
+        )
+      }
     }
 
     const user = await prisma.user.findUnique({
@@ -84,7 +107,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const reference = generateBillRef(user.name, name)
+    // Use custom reference if provided, otherwise generate one
+    const reference = customReference || generateBillRef(user.name, name)
     const shareToken = (visibility === 'READ_ONLY' || visibility === 'PUBLIC') ? generateShareToken() : null
 
     const bill = await prisma.bill.create({

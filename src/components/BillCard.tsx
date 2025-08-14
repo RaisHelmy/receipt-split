@@ -27,9 +27,10 @@ interface Bill {
 interface BillCardProps {
   bill: Bill
   onClick: () => void
+  onDelete: (billId: string, billName: string) => void
 }
 
-export default function BillCard({ bill, onClick }: BillCardProps) {
+export default function BillCard({ bill, onClick, onDelete }: BillCardProps) {
   const currencySymbol = CURRENCIES.find(c => c.code === bill.currency)?.symbol || bill.currency
   const visibilityConfig = BILL_VISIBILITY_OPTIONS.find(option => option.value === bill.visibility)
 
@@ -57,6 +58,11 @@ export default function BillCard({ bill, onClick }: BillCardProps) {
     }
   }
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDelete(bill.id, bill.name)
+  }
+
   return (
     <div
       className="bg-white border-2 border-gray-200 rounded-xl shadow-sm p-6 hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer transform hover:scale-105"
@@ -64,15 +70,27 @@ export default function BillCard({ bill, onClick }: BillCardProps) {
     >
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-lg font-semibold text-gray-800">{bill.name}</h3>
-        {bill.visibility !== 'PRIVATE' && bill.shareToken && (
+        <div className="flex gap-2">
+          {bill.visibility !== 'PRIVATE' && bill.shareToken && (
+            <button
+              onClick={copyShareLink}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              title="Copy share link"
+            >
+              📤 Share
+            </button>
+          )}
           <button
-            onClick={copyShareLink}
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-            title="Copy share link"
+            onClick={handleDelete}
+            className="text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+            title="Delete bill"
           >
-            📤 Share
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
           </button>
-        )}
+        </div>
       </div>
       
       <p className="text-sm text-gray-600 mb-2">Ref: {bill.reference}</p>

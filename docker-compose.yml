@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  bill-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bill-manager-app
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:/app/data/prod.db
+      - NEXTAUTH_SECRET=your-production-secret-key-change-this
+      - NEXTAUTH_URL=http://localhost:3000
+      - NODE_ENV=production
+    volumes:
+      # Mount data directory for persistent SQLite database
+      - bill-manager-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/bills"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  bill-manager-data:
+    driver: local

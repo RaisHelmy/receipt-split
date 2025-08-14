@@ -128,3 +128,61 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     )
   }
 }
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const currentUser = await getCurrentUser()
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      )
+    }
+
+    const { id } = await context.params
+
+    // Verify user owns the bill
+    const existingBill = await prisma.bill.findFirst({
+      where: {
+        id,
+        userId: currentUser.userId,
+      }
+    })
+
+    if (!existingBill) {
+      return NextResponse.json(
+        { error: 'Bill not found' },
+        { status: 404 }
+      )
+    }
+
+    // Delete related assignments first
+    await prisma.itemAssignment.deleteMany({
+      where: {
+        item: {
+          billId: id
+        }
+      }
+    })
+
+    // Delete bill items
+    await prisma.billItem.deleteMany({
+      where: { billId: id }
+    })
+
+    // Delete the bill
+    await prisma.bill.delete({
+      where: { id }
+    })
+
+    return NextResponse.json({ message: 'Bill deleted successfully' })
+
+  } catch (error) {
+    console.error('Delete bill error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

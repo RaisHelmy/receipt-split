@@ -109,6 +109,30 @@ export default function BillManager() {
     setBillDetailsModal({ isOpen: true, billId })
   }
 
+  const deleteBill = async (billId: string, billName: string) => {
+    if (!confirm(`Are you sure you want to delete "${billName}"?\n\nThis will permanently delete the bill and all its items. This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/bills/${billId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        // Refresh the bills list
+        fetchBills()
+        alert(`Bill "${billName}" has been deleted successfully.`)
+      } else {
+        const error = await response.json()
+        alert(`Failed to delete bill: ${error.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Failed to delete bill:', error)
+      alert('Failed to delete bill. Please try again.')
+    }
+  }
+
   const handleAuthSuccess = async () => {
     await checkAuth()
   }
@@ -201,6 +225,7 @@ export default function BillManager() {
                 key={bill.id}
                 bill={bill}
                 onClick={() => openBillDetails(bill.id)}
+                onDelete={deleteBill}
               />
             ))
           )}
