@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bill Manager - Receipt Split Application
+
+A modern React web application for managing bills and splitting costs among multiple people. Built with Next.js, TypeScript, Tailwind CSS, Prisma, and SQLite.
+
+## Features
+
+- **User Authentication**: Sign up and sign in functionality with secure password hashing
+- **Bill Management**: Create, view, and manage bills with items
+- **Public Bills**: Make bills public and share them via unique links for anonymous viewing
+- **Item Assignment**: Assign items to specific people and track payment status
+- **Cost Calculation**: Automatic calculation of service charges, taxes, and discounts
+- **Real-time Updates**: Live updates to bill totals and payment status
+- **Responsive Design**: Built with Tailwind CSS using Preline components
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: SQLite with Prisma ORM
+- **Authentication**: JWT-based authentication with httpOnly cookies
+- **Password Security**: bcryptjs for password hashing
+
+## Database Schema
+
+- **Users**: User accounts with email and password
+- **Bills**: Bill information with public/private settings and share tokens
+- **Bill Items**: Individual items within bills with quantities and amounts
+- **Item Assignments**: Assignment of items to specific people
 
 ## Getting Started
 
-First, run the development server:
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+2. **Set up the database**:
+   ```bash
+   npx prisma generate
+   npx prisma db push
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. **Set up environment variables** (`.env`):
+   ```
+   DATABASE_URL="file:./dev.db"
+   NEXTAUTH_SECRET="your-secret-key"
+   NEXTAUTH_URL="http://localhost:3000"
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+4. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+5. **Open your browser** and go to `http://localhost:3000`
 
-## Learn More
+## Usage
 
-To learn more about Next.js, take a look at the following resources:
+1. **Sign Up/Sign In**: Create an account or sign in to an existing one
+2. **Create a Bill**: Click "Create New Bill" and optionally make it public
+3. **Add Items**: Add items with names, amounts, and quantities
+4. **Assign Items**: Assign items to people by entering their names
+5. **Track Payments**: Mark items as paid and verified
+6. **Share Bills**: Public bills can be shared via generated links for anonymous viewing
+7. **Calculate Totals**: Automatic calculation of service charges, taxes, and final totals
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API Routes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `POST /api/auth/signup` - Create new user account
+- `POST /api/auth/signin` - Sign in user
+- `POST /api/auth/signout` - Sign out user
+- `GET /api/auth/me` - Get current user info
+- `GET /api/bills` - Get user's bills
+- `POST /api/bills` - Create new bill
+- `GET /api/bills/[id]` - Get specific bill
+- `PATCH /api/bills/[id]` - Update bill settings
+- `POST /api/bills/[id]/items` - Add item to bill
+- `PATCH /api/bills/[id]/items/[itemId]` - Update item assignment/status
 
-## Deploy on Vercel
+## Public Bill Sharing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Bills can be made public during creation and accessed anonymously via share links in the format:
+`/shared/[shareToken]`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Security Features
+
+- Passwords are hashed using bcryptjs
+- JWT tokens stored in httpOnly cookies
+- User authentication required for all bill operations
+- Public bills only accessible via share tokens when enabled
+
+## Development
+
+The application uses:
+- Turbopack for fast development builds
+- TypeScript for type safety
+- Prisma for database operations
+- Tailwind CSS for styling
+- Next.js App Router for routing

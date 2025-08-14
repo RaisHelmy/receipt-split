@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bills Bill[]
+
+  @@map("users")
+}
+
+enum BillVisibility {
+  PRIVATE
+  READ_ONLY
+  PUBLIC
+}
+
+model Bill {
+  id           String         @id @default(cuid())
+  name         String
+  reference    String         @unique
+  visibility   BillVisibility @default(PRIVATE)
+  shareToken   String?        @unique
+  currency     String         @default("RM")
+  serviceCharge Float         @default(0)
+  taxRate      Float          @default(0)
+  discount     Float          @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items BillItem[]
+
+  @@map("bills")
+}
+
+model BillItem {
+  id         String  @id @default(cuid())
+  name       String
+  itemId     String?
+  amount     Float
+  quantity   Int
+  total      Float
+  assignedTo String?
+  paid       Boolean @default(false)
+  verified   Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  billId String
+  bill   Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  assignments ItemAssignment[]
+
+  @@map("bill_items")
+}
+
+model ItemAssignment {
+  id     String  @id @default(cuid())
+  name   String
+  amount Float
+  paid   Boolean @default(false)
+
+  itemId String
+  item   BillItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("item_assignments")
+}
